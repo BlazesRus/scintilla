@@ -46,7 +46,7 @@ static bool isCmakeLetter(char ch)
 static bool CmakeNextLineHasElse(Sci_PositionU start, Sci_PositionU end, Accessor &styler)
 {
 	Sci_PositionU nNextLine = -1;
-    for ( Sci_PositionU i = start; i < end; i++ ) {
+    for ( Sci_PositionU i = start; i < end; ++i ) {
         char cNext = styler.SafeGetCharAt( i );
         if ( cNext == '\n' ) {
             nNextLine = i+1;
@@ -57,7 +57,7 @@ static bool CmakeNextLineHasElse(Sci_PositionU start, Sci_PositionU end, Accesso
     if ( nNextLine == -1 ) // We never foudn the next line...
         return false;
 
-    for ( Sci_PositionU firstChar = nNextLine; firstChar < end; firstChar++ ) {
+    for ( Sci_PositionU firstChar = nNextLine; firstChar < end; ++firstChar ) {
         char cNext = styler.SafeGetCharAt( firstChar );
         if ( cNext == ' ' )
             continue;
@@ -109,7 +109,7 @@ static int classifyWordCmake(Sci_PositionU start, Sci_PositionU end, WordList *k
 	WordList &Parameters = *keywordLists[1];
 	WordList &UserDefined = *keywordLists[2];
 
-	for (Sci_PositionU i = 0; i < end - start + 1 && i < 99; i++) {
+	for (Sci_PositionU i = 0; i < end - start + 1 && i < 99; ++i) {
 		word[i] = static_cast<char>(styler[start + i]);
 		lowercaseWord[i] = static_cast<char>(tolower(word[i]));
 	}
@@ -148,7 +148,7 @@ static int classifyWordCmake(Sci_PositionU start, Sci_PositionU end, WordList *k
 	// To check for numbers
 	if (isCmakeNumber(word[0])) {
 		bool bHasSimpleCmakeNumber = true;
-		for (unsigned int j = 1; j < end - start + 1 && j < 99; j++) {
+		for (unsigned int j = 1; j < end - start + 1 && j < 99; ++j) {
 			if (!isCmakeNumber(word[j])) {
 				bHasSimpleCmakeNumber = false;
 				break;
@@ -180,7 +180,7 @@ static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU, int, WordLi
 	bool bMultiComment = true;
 	
 	Sci_PositionU i;
-	for (i = startPos; i < nLengthDoc; i++) {
+	for (i = startPos; i < nLengthDoc; ++i) {
 		cCurrChar = styler.SafeGetCharAt(i);
 		char cNextChar = styler.SafeGetCharAt(i + 1);
 		char cAfterNextChar = styler.SafeGetCharAt(i + 2);
@@ -425,7 +425,7 @@ static void FoldCmakeDoc(Sci_PositionU startPos, Sci_Position length, int, WordL
                 if ( newLevel == levelNext ) {
                     if ( foldAtElse ) {
                         if ( CmakeNextLineHasElse(i, startPos + length, styler) )
-                            levelNext--;
+                            --levelNext;
                     }
                 }
                 else
@@ -437,7 +437,7 @@ static void FoldCmakeDoc(Sci_PositionU startPos, Sci_Position length, int, WordL
         if ( chCurr == '\n' ) {
             if ( bArg1 && foldAtElse) {
                 if ( CmakeNextLineHasElse(i, startPos + length, styler) )
-                    levelNext--;
+                    --levelNext;
             }
 
             // If we are on a new line...
