@@ -1,0 +1,12 @@
+
+win32/.vs/
+
+*.obj
+
+*.sbr
+
+*.log
+
+*.pdb
+
+*.tlog
