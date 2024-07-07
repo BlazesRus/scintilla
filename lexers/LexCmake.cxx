@@ -220,47 +220,47 @@ static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU length, int,
 		cAfterNextChar = styler.SafeGetCharAt(i + 2);
 		cPrevChar = styler.SafeGetCharAt(i - 1);
         switch (state) {
-        case SCE_CMAKE_DEFAULT:
-            if ( cCurrChar == '#' ) { // we have a comment line
-                styler.ColourTo(i-1, state );
-                state = SCE_CMAKE_COMMENT;
-				if (cNextChar == '[' && cAfterNextChar == '[')
-					bMultiComment = true; // we have multi comment
-            }
-            else if ( cCurrChar == '"' ) {
-                styler.ColourTo(i-1, state );
-                state = SCE_CMAKE_STRINGDQ;
-                bVarInString = false;
-                bClassicVarInString = false;
-            }
-            else if ( cCurrChar == '\'' ) {
-                styler.ColourTo(i-1, state );
-                state = SCE_CMAKE_STRINGRQ;
-                bVarInString = false;
-                bClassicVarInString = false;
-            }
-            else if ( cCurrChar == '`' ) {
-                styler.ColourTo(i-1, state );
-                state = SCE_CMAKE_STRINGLQ;
-                bVarInString = false;
-                bClassicVarInString = false;
-            }
+        case SCE_CMAKE_DEFAULT: {
+            switch (cCurrChar)
+            {
+                case '#':// we have a comment line
+                    styler.ColourTo(i-1, state );
+                    state = SCE_CMAKE_COMMENT;
+				    if (cNextChar == '[' && cAfterNextChar == '[')
+					    bMultiComment = true; // we have multi comment
+                    break;
+                case '"':
+                    styler.ColourTo(i-1, state );
+                    bVarInString = false;
+                    bClassicVarInString = false;
+                    state = SCE_CMAKE_STRINGDQ;
+                    break;
+                case '\'':
+                    styler.ColourTo(i-1, state );
+                    bVarInString = false;
+                    bClassicVarInString = false;
+                    state = SCE_CMAKE_STRINGRQ;
+                    break;
+                case '`':
+                    styler.ColourTo(i-1, state );
+                    bVarInString = false;
+                    bClassicVarInString = false;
+                    state = SCE_CMAKE_STRINGLQ;
+                    break;
+                default:// CMake Variable
+                    if ( cCurrChar == '$' || isCmakeChar(cCurrChar)) {
+                        styler.ColourTo(i-1,state);
+                        state = SCE_CMAKE_VARIABLE;
 
-            // CMake Variable
-            else if ( cCurrChar == '$' || isCmakeChar(cCurrChar)) {
-                styler.ColourTo(i-1,state);
-                state = SCE_CMAKE_VARIABLE;
-
-                // If it is a number, we must check and set style here first...
-                if ( isCmakeNumber(cCurrChar) && (cNextChar == '\t' || cNextChar == ' ' || cNextChar == '\r' || cNextChar == '\n' ) )
-                    styler.ColourTo( i, SCE_CMAKE_NUMBER);
-
+                        // If it is a number, we must check and set style here first...
+                        if ( isCmakeNumber(cCurrChar) && (cNextChar == '\t' || cNextChar == ' ' || cNextChar == '\r' || cNextChar == '\n' ) )
+                            styler.ColourTo( i, SCE_CMAKE_NUMBER);
+                    }
             }
-
-            break;
+        } break;
 
         case SCE_CMAKE_COMMENT:
-            if (bMultiComment == false && ( cCurrChar == '\n' || cCurrChar == '\r' )
+            if (bMultiComment == false && ( cCurrChar == '\n' || cCurrChar == '\r' ))
             {
                 if ( cPrevChar == '\\' ) {
                     styler.ColourTo(i-2,state);
