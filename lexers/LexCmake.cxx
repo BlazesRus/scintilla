@@ -226,32 +226,28 @@ static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU length, int,
                 state = SCE_CMAKE_COMMENT;
 				if (cNextChar == '[' && cAfterNextChar == '[')
 					bMultiComment = true; // we have multi comment
-                break;
             }
-            if ( cCurrChar == '"' ) {
+            else if ( cCurrChar == '"' ) {
                 styler.ColourTo(i-1, state );
                 state = SCE_CMAKE_STRINGDQ;
                 bVarInString = false;
                 bClassicVarInString = false;
-                break;
             }
-            if ( cCurrChar == '\'' ) {
+            else if ( cCurrChar == '\'' ) {
                 styler.ColourTo(i-1, state );
                 state = SCE_CMAKE_STRINGRQ;
                 bVarInString = false;
                 bClassicVarInString = false;
-                break;
             }
-            if ( cCurrChar == '`' ) {
+            else if ( cCurrChar == '`' ) {
                 styler.ColourTo(i-1, state );
                 state = SCE_CMAKE_STRINGLQ;
                 bVarInString = false;
                 bClassicVarInString = false;
-                break;
             }
 
             // CMake Variable
-            if ( cCurrChar == '$' || isCmakeChar(cCurrChar)) {
+            else if ( cCurrChar == '$' || isCmakeChar(cCurrChar)) {
                 styler.ColourTo(i-1,state);
                 state = SCE_CMAKE_VARIABLE;
 
@@ -259,13 +255,13 @@ static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU length, int,
                 if ( isCmakeNumber(cCurrChar) && (cNextChar == '\t' || cNextChar == ' ' || cNextChar == '\r' || cNextChar == '\n' ) )
                     styler.ColourTo( i, SCE_CMAKE_NUMBER);
 
-                break;
             }
 
             break;
 
         case SCE_CMAKE_COMMENT:
-            if (bMultiComment == false && ( cCurrChar == '\n' || cCurrChar == '\r' ) {
+            if (bMultiComment == false && ( cCurrChar == '\n' || cCurrChar == '\r' )
+            {
                 if ( cPrevChar == '\\' ) {
                     styler.ColourTo(i-2,state);
                     styler.ColourTo(i-1,SCE_CMAKE_DEFAULT);
@@ -275,7 +271,8 @@ static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU length, int,
                     state = SCE_CMAKE_DEFAULT;
                 }
             }
-            else if (bMultiComment == true && cCurrChar == ']' && cPrevChar == ']') {
+            else if (bMultiComment == true && cCurrChar == ']' && cPrevChar == ']')
+            {
 				styler.ColourTo(i - 1, state);
 				styler.ColourTo(i, state);
 				state = SCE_CMAKE_DEFAULT;
