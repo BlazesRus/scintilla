@@ -10,6 +10,9 @@
 #ifndef OPTIONSET_H
 #define OPTIONSET_H
 
+#include <map>
+#include <string>
+
 namespace Scintilla {
 
 template <typename T>

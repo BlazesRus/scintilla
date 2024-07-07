@@ -5,6 +5,8 @@
 // Copyright 2007 by Cristian Adam <cristian [dot] adam [at] gmx [dot] net>
 // based on the NSIS lexer
 // The License.txt file describes the conditions under which this software may be distributed.
+// Lexer4 changes by James Michael Armstrong (https://github.com/BlazesRus) based on LexRegistry.cxx and LexCPP.cxx
+// and multiline fix mostly by https://github.com/Motyaspr with some adjustments from (https://github.com/BlazesRus)
 
 #include <stdlib.h>
 #include <string.h>
@@ -24,179 +26,281 @@
 #include "CharacterSet.h"
 #include "LexerModule.h"
 
+#include "StringCopy.h"
+#include "OptionSet.h"
+#include "DefaultLexer.h"
+
 using namespace Scintilla;
 
-static bool isCmakeNumber(char ch)
-{
-    return(ch >= '0' && ch <= '9');
-}
+static const char * const cmakeWordLists[] = {
+    "Commands",
+    "Parameters",
+    "UserDefined",
+    0,
+    0,};
 
-static bool isCmakeChar(char ch)
-{
-    return(ch == '.' ) || (ch == '_' ) || isCmakeNumber(ch) || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
-}
+struct OptionsCMake {
+	bool foldCompact;
+	bool fold;
+    bool foldAtElse;
+	OptionsCMake() {
+		foldCompact = false;
+		fold = false;
+        foldAtElse = false;
+	}
+};
 
-static bool isCmakeLetter(char ch)
-{
-    return(ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
-}
+struct OptionSetCMake : public OptionSet<OptionsCMake> {
+	OptionSetCMake() {
+		DefineProperty("fold.compact", &OptionsCMake::foldCompact, "");
+		DefineProperty("fold", &OptionsCMake::fold, "Code is currently folded");
+		DefineProperty("fold.at.else", &OptionsCMake::foldAtElse, "");
+		DefineWordListSets(cmakeWordLists);
+	}
+};
 
-static bool CmakeNextLineHasElse(Sci_PositionU start, Sci_PositionU end, Accessor &styler)
-{
-    Sci_Position nNextLine = -1;
-    for ( Sci_PositionU i = start; i < end; ++i ) {
-        char cNext = styler.SafeGetCharAt( i );
-        if ( cNext == '\n' ) {
-            nNextLine = i+1;
-            break;
-        }
+class LexerCmake : public DefaultLexer {
+
+	OptionsCMake options;
+	OptionSetCMake optSet;
+	WordList Commands;
+	WordList Parameters;
+	WordList UserDefined;
+
+    static bool isCmakeNumber(char ch)
+    {
+        return(ch >= '0' && ch <= '9');
     }
 
-    if ( nNextLine == -1 ) // We never foudn the next line...
-        return false;
-
-    for ( Sci_PositionU firstChar = nNextLine; firstChar < end; ++firstChar ) {
-        char cNext = styler.SafeGetCharAt( firstChar );
-        if ( cNext == ' ' )
-            continue;
-        if ( cNext == '\t' )
-            continue;
-        if ( styler.Match(firstChar, "ELSE")  || styler.Match(firstChar, "else"))
-            return true;
-        break;
+    static bool isCmakeChar(char ch)
+    {
+        return(ch == '.' ) || (ch == '_' ) || isCmakeNumber(ch) || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
     }
 
-    return false;
-}
-
-static int calculateFoldCmake(Sci_PositionU start, Sci_PositionU end, int foldlevel, Accessor &styler, bool bElse)
-{
-    // If the word is too long, it is not what we are looking for
-    if ( end - start > 20 )
-        return foldlevel;
-
-    int newFoldlevel = foldlevel;
-
-    char s[20]; // The key word we are looking for has atmost 13 characters
-    for (unsigned int i = 0; i < end - start + 1 && i < 19; i++) {
-        s[i] = static_cast<char>( styler[ start + i ] );
-        s[i + 1] = '\0';
+    static bool isCmakeLetter(char ch)
+    {
+        return(ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
     }
 
-    if ( CompareCaseInsensitive(s, "IF") == 0 || CompareCaseInsensitive(s, "WHILE") == 0
-         || CompareCaseInsensitive(s, "MACRO") == 0 || CompareCaseInsensitive(s, "FOREACH") == 0
-         || CompareCaseInsensitive(s, "ELSEIF") == 0 )
-        newFoldlevel++;
-    else if ( CompareCaseInsensitive(s, "ENDIF") == 0 || CompareCaseInsensitive(s, "ENDWHILE") == 0
-              || CompareCaseInsensitive(s, "ENDMACRO") == 0 || CompareCaseInsensitive(s, "ENDFOREACH") == 0)
-        newFoldlevel--;
-    else if ( bElse && CompareCaseInsensitive(s, "ELSEIF") == 0 )
-        newFoldlevel++;
-    else if ( bElse && CompareCaseInsensitive(s, "ELSE") == 0 )
-        newFoldlevel++;
-
-    return newFoldlevel;
-}
-
-static int classifyWordCmake(Sci_PositionU start, Sci_PositionU end, WordList *keywordLists[], Accessor &styler )
-{
-    char word[100] = {0};
-    char lowercaseWord[100] = {0};
-
-    WordList &Commands = *keywordLists[0];
-    WordList &Parameters = *keywordLists[1];
-    WordList &UserDefined = *keywordLists[2];
-
-    for (Sci_PositionU i = 0; i < end - start + 1 && i < 99; ++i) {
-        word[i] = static_cast<char>( styler[ start + i ] );
-        lowercaseWord[i] = static_cast<char>(tolower(word[i]));
-    }
-
-    // Check for special words...
-    if ( CompareCaseInsensitive(word, "MACRO") == 0 || CompareCaseInsensitive(word, "ENDMACRO") == 0 )
-        return SCE_CMAKE_MACRODEF;
-
-    if ( CompareCaseInsensitive(word, "IF") == 0 ||  CompareCaseInsensitive(word, "ENDIF") == 0 )
-        return SCE_CMAKE_IFDEFINEDEF;
-
-    if ( CompareCaseInsensitive(word, "ELSEIF") == 0  || CompareCaseInsensitive(word, "ELSE") == 0 )
-        return SCE_CMAKE_IFDEFINEDEF;
-
-    if ( CompareCaseInsensitive(word, "WHILE") == 0 || CompareCaseInsensitive(word, "ENDWHILE") == 0)
-        return SCE_CMAKE_WHILEDEF;
-
-    if ( CompareCaseInsensitive(word, "FOREACH") == 0 || CompareCaseInsensitive(word, "ENDFOREACH") == 0)
-        return SCE_CMAKE_FOREACHDEF;
-
-    if ( Commands.InList(lowercaseWord) )
-        return SCE_CMAKE_COMMANDS;
-
-    if ( Parameters.InList(word) )
-        return SCE_CMAKE_PARAMETERS;
-
-
-    if ( UserDefined.InList(word) )
-        return SCE_CMAKE_USERDEFINED;
-
-    if ( strlen(word) > 3 ) {
-        if ( word[1] == '{' && word[strlen(word)-1] == '}' )
-            return SCE_CMAKE_VARIABLE;
-    }
-
-    // To check for numbers
-    if ( isCmakeNumber( word[0] ) ) {
-        bool bHasSimpleCmakeNumber = true;
-        for (unsigned int j = 1; j < end - start + 1 && j < 99; ++j) {
-            if ( !isCmakeNumber( word[j] ) ) {
-                bHasSimpleCmakeNumber = false;
+    bool CmakeNextLineHasElse(Sci_PositionU start, Sci_PositionU end, LexAccessor &styler)
+    {
+        Sci_Position nNextLine = -1;
+        for ( Sci_PositionU i = start; i < end; ++i ) {
+            char cNext = styler.SafeGetCharAt( i );
+            if ( cNext == '\n' ) {
+                nNextLine = i+1;
                 break;
             }
         }
 
-        if ( bHasSimpleCmakeNumber )
-            return SCE_CMAKE_NUMBER;
+        if ( nNextLine == -1 ) // We never foudn the next line...
+            return false;
+
+        for ( Sci_PositionU firstChar = nNextLine; firstChar < end; ++firstChar ) {
+            char cNext = styler.SafeGetCharAt( firstChar );
+            if ( cNext == ' ' )
+                continue;
+            if ( cNext == '\t' )
+                continue;
+            if ( styler.Match(firstChar, "ELSE")  || styler.Match(firstChar, "else"))
+                return true;
+            break;
+        }
+
+        return false;
     }
 
-    return SCE_CMAKE_DEFAULT;
-}
+    int calculateFoldCmake(Sci_PositionU start, Sci_PositionU end, int foldlevel, LexAccessor &styler, bool bElse)
+    {
+        // If the word is too long, it is not what we are looking for
+        if ( end - start > 20 )
+            return foldlevel;
 
-static void SCE_CMAKE_STRINGPart02(Accessor &styler, int& state, const char& cNextChar, const int& i)
-{
-	if ( cNextChar == '\r' || cNextChar == '\n' ) {
-		Sci_Position nCurLine = styler.GetLine(i+1);
-		Sci_Position nBack = i;
-		// We need to check if the previous line has a \ in it...
-		bool bNextLine = false;
-		char cTemp;
+        int newFoldlevel = foldlevel;
 
-		while ( nBack > 0 ) {
-			if ( styler.GetLine(nBack) != nCurLine )
-				return;
+        char s[20]; // The key word we are looking for has atmost 13 characters
+        for (unsigned int i = 0; i < end - start + 1 && i < 19; i++) {
+            s[i] = static_cast<char>( styler[ start + i ] );
+            s[i + 1] = '\0';
+        }
 
-			cTemp = styler.SafeGetCharAt(nBack, 'a'); // Letter 'a' is safe here
+        if ( CompareCaseInsensitive(s, "IF") == 0 || CompareCaseInsensitive(s, "WHILE") == 0
+             || CompareCaseInsensitive(s, "MACRO") == 0 || CompareCaseInsensitive(s, "FOREACH") == 0
+             || CompareCaseInsensitive(s, "ELSEIF") == 0 )
+            ++newFoldlevel;
+        else if ( CompareCaseInsensitive(s, "ENDIF") == 0 || CompareCaseInsensitive(s, "ENDWHILE") == 0
+                  || CompareCaseInsensitive(s, "ENDMACRO") == 0 || CompareCaseInsensitive(s, "ENDFOREACH") == 0)
+            --newFoldlevel;
+        else if ( bElse && CompareCaseInsensitive(s, "ELSEIF") == 0 )
+            ++newFoldlevel;
+        else if ( bElse && CompareCaseInsensitive(s, "ELSE") == 0 )
+            ++newFoldlevel;
 
-			if ( cTemp == '\\' ) {
-				bNextLine = true;
-				return;
-			}
-			else if ( cTemp != '\r' && cTemp != '\n' && cTemp != '\t' && cTemp != ' ' )
-				return;
+        return newFoldlevel;
+    }
 
-			--nBack;
+    //static int classifyWordCmake(Sci_PositionU start, Sci_PositionU end, WordList *keywordLists[], LexAccessor &styler )
+    int classifyWordCmake(const Sci_PositionU& start, const Sci_PositionU& end, LexAccessor &styler )
+    {
+        char word[100] = {0};
+        char lowercaseWord[100] = {0};
+
+        for (Sci_PositionU i = 0; i < end - start + 1 && i < 99; ++i) {
+            word[i] = static_cast<char>( styler[ start + i ] );
+            lowercaseWord[i] = static_cast<char>(tolower(word[i]));
+        }
+
+        // Check for special words...
+        if ( CompareCaseInsensitive(word, "MACRO") == 0 || CompareCaseInsensitive(word, "ENDMACRO") == 0 )
+            return SCE_CMAKE_MACRODEF;
+
+        if ( CompareCaseInsensitive(word, "IF") == 0 ||  CompareCaseInsensitive(word, "ENDIF") == 0 )
+            return SCE_CMAKE_IFDEFINEDEF;
+
+        if ( CompareCaseInsensitive(word, "ELSEIF") == 0  || CompareCaseInsensitive(word, "ELSE") == 0 )
+            return SCE_CMAKE_IFDEFINEDEF;
+
+        if ( CompareCaseInsensitive(word, "WHILE") == 0 || CompareCaseInsensitive(word, "ENDWHILE") == 0)
+            return SCE_CMAKE_WHILEDEF;
+
+        if ( CompareCaseInsensitive(word, "FOREACH") == 0 || CompareCaseInsensitive(word, "ENDFOREACH") == 0)
+            return SCE_CMAKE_FOREACHDEF;
+
+        if ( Commands.InList(lowercaseWord) )
+            return SCE_CMAKE_COMMANDS;
+
+        if ( Parameters.InList(word) )
+            return SCE_CMAKE_PARAMETERS;
+
+
+        if ( UserDefined.InList(word) )
+            return SCE_CMAKE_USERDEFINED;
+
+        if ( strlen(word) > 3 ) {
+            if ( word[1] == '{' && word[strlen(word)-1] == '}' )
+                return SCE_CMAKE_VARIABLE;
+        }
+
+        // To check for numbers
+        if ( isCmakeNumber( word[0] ) ) {
+            bool bHasSimpleCmakeNumber = true;
+            for (unsigned int j = 1; j < end - start + 1 && j < 99; ++j) {
+                if ( !isCmakeNumber( word[j] ) ) {
+                    bHasSimpleCmakeNumber = false;
+                    break;
+                }
+            }
+
+            if ( bHasSimpleCmakeNumber )
+                return SCE_CMAKE_NUMBER;
+        }
+
+        return SCE_CMAKE_DEFAULT;
+    }
+
+    void SCE_CMAKE_STRINGPart02(LexAccessor &styler, int& state, const char& cNextChar, const Sci_Position& i)
+    {
+	    if ( cNextChar == '\r' || cNextChar == '\n' ) {
+		    Sci_Position nCurLine = styler.GetLine(i+1);
+		    Sci_Position nBack = i;
+		    // We need to check if the previous line has a \ in it...
+		    bool bNextLine = false;
+		    char cTemp;
+
+		    while ( nBack > 0 ) {
+			    if ( styler.GetLine(nBack) != nCurLine )
+				    return;
+
+			    cTemp = styler.SafeGetCharAt(nBack, 'a'); // Letter 'a' is safe here
+
+			    if ( cTemp == '\\' ) {
+				    bNextLine = true;
+				    return;
+			    }
+			    else if ( cTemp != '\r' && cTemp != '\n' && cTemp != '\t' && cTemp != ' ' )
+				    return;
+
+			    --nBack;
+		    }
+
+		    if ( bNextLine )
+			    styler.ColourTo(i+1,state);
+
+		    if ( bNextLine == false ) {
+			    styler.ColourTo(i,state);
+			    state = SCE_CMAKE_DEFAULT;
+		    }
+	    }
+    }
+
+public:
+    LexerCmake(){}
+	virtual ~LexerCmake() {}
+	int SCI_METHOD Version() const override {
+		return lvRelease4;
+	}
+	void SCI_METHOD Release() override {
+		delete this;
+	}
+	const char *SCI_METHOD PropertyNames() override {
+		return optSet.PropertyNames();
+	}
+	int SCI_METHOD PropertyType(const char *name) override {
+		return optSet.PropertyType(name);
+	}
+	const char *SCI_METHOD DescribeProperty(const char *name) override {
+		return optSet.DescribeProperty(name);
+	}
+	Sci_Position SCI_METHOD PropertySet(const char *key, const char *val) override {
+		if (optSet.PropertySet(&options, key, val)) {
+			return 0;
 		}
+		return -1;
+	}
+    const char * SCI_METHOD DescribeWordListSets() override {
+        return optSet.DescribeWordListSets();
+    }
+	Sci_Position SCI_METHOD WordListSet(int n, const char *wl) override;
+	void *SCI_METHOD PrivateCall(int, void *) override {
+		return 0;
+	}
+	void SCI_METHOD Lex(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument *pAccess) override;
+	void SCI_METHOD Fold(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument *pAccess) override;
+	static ILexer4 *LexerFactoryCmake() {
+		return new LexerCmake;
+	}
+};
 
-		if ( bNextLine )
-			styler.ColourTo(i+1,state);
-
-		if ( bNextLine == false ) {
-			styler.ColourTo(i,state);
-			state = SCE_CMAKE_DEFAULT;
+Sci_Position SCI_METHOD LexerCmake::WordListSet(int n, const char *wl) {
+	WordList *wordListN = nullptr;
+	switch (n) {
+	case 0:
+		wordListN = &Commands;
+		break;
+	case 1:
+		wordListN = &Parameters;
+		break;
+	case 2:
+		wordListN = &UserDefined;
+		break;
+	}
+	Sci_Position firstModification = -1;
+	if (wordListN) {
+		WordList wlNew;
+		wlNew.Set(wl);
+		if (*wordListN != wlNew) {
+			wordListN->Set(wl);
 		}
 	}
+	return firstModification;
 }
 
-static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU length, int, WordList *keywordLists[], Accessor &styler)
+//static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_Position length, int, WordList *keywordLists[], Accessor &styler)
+void SCI_METHOD LexerCmake::Lex(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument* pAccess)
 {
+	LexAccessor styler(pAccess);
+    StyleContext context(startPos, length, initStyle, styler);
+
     int state = SCE_CMAKE_DEFAULT;
     if ( startPos > 0 )
         state = styler.StyleAt(startPos-1); // Use the style from the previous line, usually default, but could be commentbox
@@ -324,12 +428,12 @@ static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU length, int,
             else if ( cCurrChar == '\\' && (cNextChar == 'n' || cNextChar == 'r' || cNextChar == 't' ) )
                 state = SCE_CMAKE_DEFAULT;
             else if ( (isCmakeChar(cCurrChar) && !isCmakeChar( cNextChar) && cNextChar != '}') || cCurrChar == '}' ) {
-                state = classifyWordCmake( styler.GetStartSegment(), i, keywordLists, styler );
+                state = classifyWordCmake( styler.GetStartSegment(), i, styler );
                 styler.ColourTo( i, state);
                 state = SCE_CMAKE_DEFAULT;
             }
             else if ( !isCmakeChar( cCurrChar ) && cCurrChar != '{' && cCurrChar != '}' ) {
-                if ( classifyWordCmake( styler.GetStartSegment(), i-1, keywordLists, styler) == SCE_CMAKE_NUMBER )
+                if ( classifyWordCmake( styler.GetStartSegment(), i-1, styler) == SCE_CMAKE_NUMBER )
                     styler.ColourTo( i-1, SCE_CMAKE_NUMBER );
 
                 state = SCE_CMAKE_DEFAULT;
@@ -372,7 +476,7 @@ static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU length, int,
             }
 
             else if ( bVarInString && !isCmakeChar(cNextChar) ) {
-                int nWordState = classifyWordCmake( styler.GetStartSegment(), i, keywordLists, styler);
+                int nWordState = classifyWordCmake( styler.GetStartSegment(), i, styler);
                 if ( nWordState == SCE_CMAKE_VARIABLE )
                     styler.ColourTo( i, SCE_CMAKE_STRINGVAR);
                 bVarInString = false;
@@ -399,15 +503,21 @@ static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_PositionU length, int,
 
     // Colourise remaining document
     styler.ColourTo(nLengthDoc-1,state);
+
+	context.Complete();
 }
 
-static void FoldCmakeDoc(Sci_PositionU startPos, Sci_Position length, int, WordList *[], Accessor &styler)
+//static void FoldCmakeDoc(Sci_PositionU startPos, Sci_Position length, int, WordList *[], Accessor &styler)
+void SCI_METHOD LexerCmake::Fold(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument* pAccess)
 {
-    // No folding enabled, no reason to continue...
-    if ( styler.GetPropertyInt("fold") == 0 )
+	LexAccessor styler(pAccess);
+    StyleContext context(startPos, length, initStyle, styler);
+
+     // No folding enabled, no reason to continue...
+    if (!options.fold)
         return;
 
-    bool foldAtElse = styler.GetPropertyInt("fold.at.else", 0) == 1;
+    bool foldAtElse = options.foldAtElse == 1;
 
     Sci_Position lineCurrent = styler.GetLine(startPos);
     Sci_PositionU safeStartPos = styler.LineStart( lineCurrent );
@@ -469,13 +579,10 @@ static void FoldCmakeDoc(Sci_PositionU startPos, Sci_Position length, int, WordL
         lev |= SC_FOLDLEVELHEADERFLAG;
     if (lev != styler.LevelAt(lineCurrent))
         styler.SetLevel(lineCurrent, lev);
+
+	context.Complete();
 }
 
-static const char * const cmakeWordLists[] = {
-    "Commands",
-    "Parameters",
-    "UserDefined",
-    0,
-    0,};
+LexerModule lmCmake(SCLEX_CMAKE, LexerCmake::LexerFactoryCmake, "cmake", cmakeWordLists);
 
-LexerModule lmCmake(SCLEX_CMAKE, ColouriseCmakeDoc, "cmake", FoldCmakeDoc, cmakeWordLists);
+
