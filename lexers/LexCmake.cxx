@@ -30,7 +30,7 @@
 #include "OptionSet.h"
 #include "DefaultLexer.h"
 
-using namespace Scintilla;
+using namespace Lexilla;
 
 static const char * const cmakeWordLists[] = {
     "Commands",
