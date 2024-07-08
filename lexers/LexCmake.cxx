@@ -40,32 +40,32 @@ static const char * const cmakeWordLists[] = {
     0,};
 
 struct OptionsCMake {
-	bool foldCompact;
-	bool fold;
+    bool foldCompact;
+    bool fold;
     bool foldAtElse;
-	OptionsCMake() {
-		foldCompact = false;
-		fold = false;
+    OptionsCMake() {
+        foldCompact = false;
+        fold = false;
         foldAtElse = false;
-	}
+    }
 };
 
 struct OptionSetCMake : public OptionSet<OptionsCMake> {
-	OptionSetCMake() {
-		DefineProperty("fold.compact", &OptionsCMake::foldCompact, "");
-		DefineProperty("fold", &OptionsCMake::fold, "Code is currently folded");
-		DefineProperty("fold.at.else", &OptionsCMake::foldAtElse, "");
-		DefineWordListSets(cmakeWordLists);
-	}
+    OptionSetCMake() {
+        DefineProperty("fold.compact", &OptionsCMake::foldCompact, "");
+        DefineProperty("fold", &OptionsCMake::fold, "Code is currently folded");
+        DefineProperty("fold.at.else", &OptionsCMake::foldAtElse, "");
+        DefineWordListSets(cmakeWordLists);
+    }
 };
 
 class LexerCmake : public DefaultLexer {
 
-	OptionsCMake options;
-	OptionSetCMake optSet;
-	WordList Commands;
-	WordList Parameters;
-	WordList UserDefined;
+    OptionsCMake options;
+    OptionSetCMake optSet;
+    WordList Commands;
+    WordList Parameters;
+    WordList UserDefined;
 
     static bool isCmakeNumber(char ch)
     {
@@ -200,105 +200,105 @@ class LexerCmake : public DefaultLexer {
 
     void SCE_CMAKE_STRINGPart02(LexAccessor &styler, int& state, const char& cNextChar, const Sci_Position& i)
     {
-	    if ( cNextChar == '\r' || cNextChar == '\n' ) {
-		    Sci_Position nCurLine = styler.GetLine(i+1);
-		    Sci_Position nBack = i;
-		    // We need to check if the previous line has a \ in it...
-		    bool bNextLine = false;
-		    char cTemp;
+        if ( cNextChar == '\r' || cNextChar == '\n' ) {
+            Sci_Position nCurLine = styler.GetLine(i+1);
+            Sci_Position nBack = i;
+            // We need to check if the previous line has a \ in it...
+            bool bNextLine = false;
+            char cTemp;
 
-		    while ( nBack > 0 ) {
-			    if ( styler.GetLine(nBack) != nCurLine )
-				    return;
+            while ( nBack > 0 ) {
+                if ( styler.GetLine(nBack) != nCurLine )
+                    return;
 
-			    cTemp = styler.SafeGetCharAt(nBack, 'a'); // Letter 'a' is safe here
+                cTemp = styler.SafeGetCharAt(nBack, 'a'); // Letter 'a' is safe here
 
-			    if ( cTemp == '\\' ) {
-				    bNextLine = true;
-				    return;
-			    }
-			    else if ( cTemp != '\r' && cTemp != '\n' && cTemp != '\t' && cTemp != ' ' )
-				    return;
+                if ( cTemp == '\\' ) {
+                    bNextLine = true;
+                    return;
+                }
+                else if ( cTemp != '\r' && cTemp != '\n' && cTemp != '\t' && cTemp != ' ' )
+                    return;
 
-			    --nBack;
-		    }
+                --nBack;
+            }
 
-		    if ( bNextLine )
-			    styler.ColourTo(i+1,state);
+            if ( bNextLine )
+                styler.ColourTo(i+1,state);
 
-		    if ( bNextLine == false ) {
-			    styler.ColourTo(i,state);
-			    state = SCE_CMAKE_DEFAULT;
-		    }
-	    }
+            if ( bNextLine == false ) {
+                styler.ColourTo(i,state);
+                state = SCE_CMAKE_DEFAULT;
+            }
+        }
     }
 
 public:
     LexerCmake(){}
-	virtual ~LexerCmake() {}
-	int SCI_METHOD Version() const override {
-		return lvRelease4;
-	}
-	void SCI_METHOD Release() override {
-		delete this;
-	}
-	const char *SCI_METHOD PropertyNames() override {
-		return optSet.PropertyNames();
-	}
-	int SCI_METHOD PropertyType(const char *name) override {
-		return optSet.PropertyType(name);
-	}
-	const char *SCI_METHOD DescribeProperty(const char *name) override {
-		return optSet.DescribeProperty(name);
-	}
-	Sci_Position SCI_METHOD PropertySet(const char *key, const char *val) override {
-		if (optSet.PropertySet(&options, key, val)) {
-			return 0;
-		}
-		return -1;
-	}
+    virtual ~LexerCmake() {}
+    int SCI_METHOD Version() const override {
+        return lvRelease4;
+    }
+    void SCI_METHOD Release() override {
+        delete this;
+    }
+    const char *SCI_METHOD PropertyNames() override {
+        return optSet.PropertyNames();
+    }
+    int SCI_METHOD PropertyType(const char *name) override {
+        return optSet.PropertyType(name);
+    }
+    const char *SCI_METHOD DescribeProperty(const char *name) override {
+        return optSet.DescribeProperty(name);
+    }
+    Sci_Position SCI_METHOD PropertySet(const char *key, const char *val) override {
+        if (optSet.PropertySet(&options, key, val)) {
+            return 0;
+        }
+        return -1;
+    }
     const char * SCI_METHOD DescribeWordListSets() override {
         return optSet.DescribeWordListSets();
     }
-	Sci_Position SCI_METHOD WordListSet(int n, const char *wl) override;
-	void *SCI_METHOD PrivateCall(int, void *) override {
-		return 0;
-	}
-	void SCI_METHOD Lex(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument *pAccess) override;
-	void SCI_METHOD Fold(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument *pAccess) override;
-	static ILexer4 *LexerFactoryCmake() {
-		return new LexerCmake;
-	}
+    Sci_Position SCI_METHOD WordListSet(int n, const char *wl) override;
+    void *SCI_METHOD PrivateCall(int, void *) override {
+        return 0;
+    }
+    void SCI_METHOD Lex(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument *pAccess) override;
+    void SCI_METHOD Fold(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument *pAccess) override;
+    static ILexer4 *LexerFactoryCmake() {
+        return new LexerCmake;
+    }
 };
 
 Sci_Position SCI_METHOD LexerCmake::WordListSet(int n, const char *wl) {
-	WordList *wordListN = nullptr;
-	switch (n) {
-	case 0:
-		wordListN = &Commands;
-		break;
-	case 1:
-		wordListN = &Parameters;
-		break;
-	case 2:
-		wordListN = &UserDefined;
-		break;
-	}
-	Sci_Position firstModification = -1;
-	if (wordListN) {
-		WordList wlNew;
-		wlNew.Set(wl);
-		if (*wordListN != wlNew) {
-			wordListN->Set(wl);
-		}
-	}
-	return firstModification;
+    WordList *wordListN = nullptr;
+    switch (n) {
+    case 0:
+        wordListN = &Commands;
+        break;
+    case 1:
+        wordListN = &Parameters;
+        break;
+    case 2:
+        wordListN = &UserDefined;
+        break;
+    }
+    Sci_Position firstModification = -1;
+    if (wordListN) {
+        WordList wlNew;
+        wlNew.Set(wl);
+        if (*wordListN != wlNew) {
+            wordListN->Set(wl);
+        }
+    }
+    return firstModification;
 }
 
 //static void ColouriseCmakeDoc(Sci_PositionU startPos, Sci_Position length, int, WordList *keywordLists[], Accessor &styler)
 void SCI_METHOD LexerCmake::Lex(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument* pAccess)
 {
-	LexAccessor styler(pAccess);
+    LexAccessor styler(pAccess);
     StyleContext context(startPos, length, initStyle, styler);
 
     int state = SCE_CMAKE_DEFAULT;
@@ -314,15 +314,15 @@ void SCI_METHOD LexerCmake::Lex(Sci_PositionU startPos, Sci_Position length, int
     char cCurrChar;
     bool bVarInString = false;
     bool bClassicVarInString = false;
-	bool bMultiComment = false;
+    bool bMultiComment = false;
     char cNextChar; char cAfterNextChar; char cPrevChar;
 
     Sci_PositionU i;
     for ( i = startPos; i < nLengthDoc; ++i ) {
         cCurrChar = styler.SafeGetCharAt( i );
         cNextChar = styler.SafeGetCharAt(i+1);
-		cAfterNextChar = styler.SafeGetCharAt(i + 2);
-		cPrevChar = styler.SafeGetCharAt(i - 1);
+        cAfterNextChar = styler.SafeGetCharAt(i + 2);
+        cPrevChar = styler.SafeGetCharAt(i - 1);
         switch (state) {
         case SCE_CMAKE_DEFAULT: {
             switch (cCurrChar)
@@ -330,8 +330,8 @@ void SCI_METHOD LexerCmake::Lex(Sci_PositionU startPos, Sci_Position length, int
                 case '#':// we have a comment line
                     styler.ColourTo(i-1, state );
                     state = SCE_CMAKE_COMMENT;
-				    if (cNextChar == '[' && cAfterNextChar == '[')
-					    bMultiComment = true; // we have multi comment
+                    if (cNextChar == '[' && cAfterNextChar == '[')
+                        bMultiComment = true; // we have multi comment
                     break;
                 case '"':
                     styler.ColourTo(i-1, state );
@@ -377,48 +377,48 @@ void SCI_METHOD LexerCmake::Lex(Sci_PositionU startPos, Sci_Position length, int
             }
             else if (bMultiComment == true && cCurrChar == ']' && cPrevChar == ']')
             {
-				styler.ColourTo(i - 1, state);
-				styler.ColourTo(i, state);
-				state = SCE_CMAKE_DEFAULT;
-				bMultiComment = false;
-			}
+                styler.ColourTo(i - 1, state);
+                styler.ColourTo(i, state);
+                state = SCE_CMAKE_DEFAULT;
+                bMultiComment = false;
+            }
             break;
 
         case SCE_CMAKE_STRINGDQ:
             if ( cPrevChar == '\\' && styler.SafeGetCharAt(i-2) == '$' )
             {    // Ignore the next character, even if it is a quote of some sort
-			}
+            }
             else if ( cCurrChar == '"' ) {
                 styler.ColourTo(i,state);
                 state = SCE_CMAKE_DEFAULT;
             }
-			else
-				SCE_CMAKE_STRINGPart02(styler, state, cNextChar, i);
-			break;
+            else
+                SCE_CMAKE_STRINGPart02(styler, state, cNextChar, i);
+            break;
 
         case SCE_CMAKE_STRINGLQ:
             if ( cPrevChar == '\\' && styler.SafeGetCharAt(i-2) == '$' )
             {    // Ignore the next character, even if it is a quote of some sort
-			}
+            }
             else if ( cCurrChar == '`' ) {
                 styler.ColourTo(i,state);
                 state = SCE_CMAKE_DEFAULT;
             }
-			else
-				SCE_CMAKE_STRINGPart02(styler, state, cNextChar, i);
-			break;
+            else
+                SCE_CMAKE_STRINGPart02(styler, state, cNextChar, i);
+            break;
 
         case SCE_CMAKE_STRINGRQ:
             if ( cPrevChar == '\\' && styler.SafeGetCharAt(i-2) == '$' )
             {    // Ignore the next character, even if it is a quote of some sort
-			}
+            }
             else if ( cCurrChar == '\'') {
                 styler.ColourTo(i,state);
                 state = SCE_CMAKE_DEFAULT;
             }
-			else
-				SCE_CMAKE_STRINGPart02(styler, state, cNextChar, i);
-			break;
+            else
+                SCE_CMAKE_STRINGPart02(styler, state, cNextChar, i);
+            break;
 
         case SCE_CMAKE_VARIABLE:
 
@@ -455,8 +455,8 @@ void SCI_METHOD LexerCmake::Lex(Sci_PositionU startPos, Sci_Position length, int
                 }
                 else if ( cCurrChar == '#' ) {
                     state = SCE_CMAKE_COMMENT;
-					if (cNextChar == '[' && cAfterNextChar == '[')
-						bMultiComment = true;
+                    if (cNextChar == '[' && cAfterNextChar == '[')
+                        bMultiComment = true;
                 }
             }
             break;
@@ -504,13 +504,13 @@ void SCI_METHOD LexerCmake::Lex(Sci_PositionU startPos, Sci_Position length, int
     // Colourise remaining document
     styler.ColourTo(nLengthDoc-1,state);
 
-	context.Complete();
+    context.Complete();
 }
 
 //static void FoldCmakeDoc(Sci_PositionU startPos, Sci_Position length, int, WordList *[], Accessor &styler)
 void SCI_METHOD LexerCmake::Fold(Sci_PositionU startPos, Sci_Position length, int initStyle, IDocument* pAccess)
 {
-	LexAccessor styler(pAccess);
+    LexAccessor styler(pAccess);
     StyleContext context(startPos, length, initStyle, styler);
 
      // No folding enabled, no reason to continue...
@@ -580,7 +580,7 @@ void SCI_METHOD LexerCmake::Fold(Sci_PositionU startPos, Sci_Position length, in
     if (lev != styler.LevelAt(lineCurrent))
         styler.SetLevel(lineCurrent, lev);
 
-	context.Complete();
+    context.Complete();
 }
 
 LexerModule lmCmake(SCLEX_CMAKE, LexerCmake::LexerFactoryCmake, "cmake", cmakeWordLists);
