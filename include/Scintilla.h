@@ -20,14 +20,19 @@ extern "C" {
 // --- needed to bind Scintilla as dynamic link library (DLL) ---
 // ==============================================================
 typedef struct _wrct_t { long left; long top; long right; long bottom; } WRECT, *LPWRECT; // Windows RECT
+//#if defined(_WIN32)
 __declspec(dllexport) int       Scintilla_RegisterClasses(void *hInstance);
 __declspec(dllexport) int       Scintilla_ReleaseResources(void);
+//#endif
 __declspec(dllexport) int       Scintilla_InputCodePage(void);
 __declspec(dllexport) unsigned  Scintilla_GetWindowDPI(void* hwnd);
 __declspec(dllexport) int       Scintilla_GetSystemMetricsForDpi(int nIndex, unsigned dpi);
 __declspec(dllexport) int       Scintilla_GetSystemMetricsForDpi(int nIndex, unsigned dpi);
 __declspec(dllexport) int       Scintilla_AdjustWindowRectForDpi(LPWRECT lpRect, unsigned long dwStyle, unsigned long  dwExStyle, unsigned dpi);
 // <<<<<<<<<<<<<<<   END NON STD SCI PATCH   <<<<<<<<<<<<<<<
+
+//From main branch plus dllspec change:
+__declspec(dllexport) int Scintilla_LinkLexers(void);
 
 #ifdef __cplusplus
 }
